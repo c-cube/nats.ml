@@ -701,6 +701,14 @@ and dispatch_message c = function
       headers = None;
       payload = msg.Msg.payload;
     }
+  | ServerMessage.HMsg msg ->
+    Subscriptions.handle_msg c.subscriptions {
+      subject = msg.subject;
+      reply   = msg.reply;
+      sid     = int_of_string msg.sid;
+      headers = Some msg.headers;
+      payload = msg.payload;
+    }
   | ServerMessage.Ping ->
     send_msg c ClientMessage.Pong
   | ServerMessage.Pong ->
@@ -711,7 +719,6 @@ and dispatch_message c = function
   | ServerMessage.Err msg ->
     process_err c msg
   | ServerMessage.Ok -> ()
-  | _ -> ()
 
 (** [msg_loop c] processes incoming messages for the client [c].
 
