@@ -23,6 +23,7 @@ let default_inbox_prefix = "_INBOX"
 
 let default_ping_interval = 120.       (* in seconds *)
 let default_max_pings_outstanding = 2
+let default_no_responders = false
 
 type callback = Subscription.callback
 
@@ -369,6 +370,7 @@ type t = {
   (** The subscription manager for handling active subscriptions. *)
   cur_sync_op : CurrentSyncOperation.t;
   (** The current synchronous operation being executed. *)
+  (* TODO: replace with a hashmap nuid -> request *)
   mutable cur_request : PendingRequest.t option;
   (** The current pending request, if any. *)
   ping_pongs : PingPongTracker.t;
@@ -895,7 +897,7 @@ let process_expected_info ?timeout c =
 
 (** [send_connect ?timeout c] sends a CONNECT protocol message to the server
     and waits for a flush to return from the server for error processing. *)
-let send_connect ?timeout c =
+let send_connect ?(no_responders=false) ?timeout c =
   let remaining_time = remaining_time_fn timeout in
 
   let connect_msg = ClientMessage.Connect
@@ -908,7 +910,7 @@ let send_connect ?timeout c =
          ~pedantic:c.options.pedantic
          ~tls_required:false
          ~echo:true
-         ~no_responders:false
+         ~no_responders
          ~headers:false
          ())
   in
@@ -935,6 +937,7 @@ let connect
     ?connect_timeout
     ?(ping_interval = default_ping_interval)
     ?(max_pings_outstanding = default_max_pings_outstanding)
+    ?(no_responders=default_no_responders)
     ?(closed_cb = Fun.const ())
     ?(error_cb = default_error_callback)
     ?(inbox_prefix = default_inbox_prefix)
@@ -996,7 +999,7 @@ let connect
   begin
     try
       process_expected_info conn ?timeout:(remaining_time ());
-      send_connect conn ?timeout:(remaining_time ());
+      send_connect conn ~no_responders ?timeout:(remaining_time ());
 
       ignore @@ subscribe conn (conn.resp_sub_prefix ^ "*")
         ~callback:begin fun msg ->

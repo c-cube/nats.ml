@@ -56,6 +56,7 @@ val connect :
   ?connect_timeout:float ->
   ?ping_interval:float ->
   ?max_pings_outstanding:int ->
+  ?no_responders:bool ->
   ?closed_cb:conn_callback ->
   ?error_cb:error_callback ->
   ?inbox_prefix:string ->
@@ -78,6 +79,8 @@ val connect :
       seconds.
     - [ping_interval] (optional): the period (in seconds) at which the client
       will be sending PING commands to the server.  Defaults to 120 seconds.
+    - [no_responders] (optional): if true, requests with no subscribers fail
+      with a "no responders" error. Defaults to false.
     - [max_pings_outstanding] (optional): the maximum number of pending PING
       commands that can be awaiting a response before raising a
       [StaleConnection] error.  Defaults to 2.
@@ -144,7 +147,7 @@ val new_inbox : t -> string
     the {!Subscription.next_msg} function is used to obtain the delivered
     messages.
 
-    If [queue] is given the subscription is a queue subscription.  All
+    If [group] is given the subscription is a queue subscription.  All
     subscribers with the same queue name will form the queue group and only one
     member of the group will be selected to receive any given message.
 
