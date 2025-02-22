@@ -24,6 +24,7 @@ let default_inbox_prefix = "_INBOX"
 let default_ping_interval = 120.       (* in seconds *)
 let default_max_pings_outstanding = 2
 let default_no_responders = false
+let default_headers = false
 
 type callback = Subscription.callback
 
@@ -806,14 +807,19 @@ let subscribe c ?group ?callback subject =
   send_msg c sub_msg;
   sub
 
-let publish c ?reply subject payload =
+let publish c ?(headers=[]) ?reply subject payload =
   if is_closed c then
     nats_error ConnectionClosed;
 
-  let pub_msg = ClientMessage.Pub (Pub.make ~subject ?reply ~payload ()) in
+  let pub_msg = match headers with
+    | [] -> ClientMessage.Pub (Pub.make ~subject ?reply ~payload ())
+    | _ ->
+      let headers = Nats.Protocol.Headers.make ~headers () in
+      ClientMessage.HPub (HPub.make ~headers ~subject ?reply ~payload ())
+  in
   send_msg c pub_msg
 
-let request c ?timeout subject payload =
+let request c ?headers ?timeout subject payload =
   if is_closed c then
     nats_error ConnectionClosed;
 
@@ -832,7 +838,7 @@ let request c ?timeout subject payload =
       Fun.protect
         ~finally:(fun () -> Mutex.protect c.mutex (fun () -> c.cur_request <- None))
         begin fun () ->
-          publish c ~reply:resp_subject subject payload;
+          publish c ?headers ~reply:resp_subject subject payload;
 
           match PendingRequest.wait req with
           | Response msg  -> msg
@@ -840,9 +846,9 @@ let request c ?timeout subject payload =
         end
     end
 
-let request_opt c ?timeout subject payload =
+let request_opt c ?headers ?timeout subject payload =
   try
-    Some (request c subject payload ?timeout)
+    Some (request c ?headers subject payload ?timeout)
   with NatsError Timeout ->
     None
 
@@ -897,8 +903,14 @@ let process_expected_info ?timeout c =
 
 (** [send_connect ?timeout c] sends a CONNECT protocol message to the server
     and waits for a flush to return from the server for error processing. *)
-let send_connect ?(no_responders=false) ?timeout c =
+let send_connect
+    ?(no_responders=default_no_responders)
+    ?(headers=default_headers)
+    ?timeout c =
   let remaining_time = remaining_time_fn timeout in
+
+  (* no responders requires headers *)
+  let headers = headers || no_responders in
 
   let connect_msg = ClientMessage.Connect
       (Connect.make
@@ -911,7 +923,7 @@ let send_connect ?(no_responders=false) ?timeout c =
          ~tls_required:false
          ~echo:true
          ~no_responders
-         ~headers:false
+         ~headers
          ())
   in
   send_msg_direct c connect_msg;
@@ -937,7 +949,8 @@ let connect
     ?connect_timeout
     ?(ping_interval = default_ping_interval)
     ?(max_pings_outstanding = default_max_pings_outstanding)
-    ?(no_responders=default_no_responders)
+    ?(no_responders = default_no_responders)
+    ?(headers=default_headers)
     ?(closed_cb = Fun.const ())
     ?(error_cb = default_error_callback)
     ?(inbox_prefix = default_inbox_prefix)
@@ -999,7 +1012,7 @@ let connect
   begin
     try
       process_expected_info conn ?timeout:(remaining_time ());
-      send_connect conn ~no_responders ?timeout:(remaining_time ());
+      send_connect conn ~headers ~no_responders ?timeout:(remaining_time ());
 
       ignore @@ subscribe conn (conn.resp_sub_prefix ^ "*")
         ~callback:begin fun msg ->

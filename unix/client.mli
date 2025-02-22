@@ -57,6 +57,7 @@ val connect :
   ?ping_interval:float ->
   ?max_pings_outstanding:int ->
   ?no_responders:bool ->
+  ?headers:bool ->
   ?closed_cb:conn_callback ->
   ?error_cb:error_callback ->
   ?inbox_prefix:string ->
@@ -79,6 +80,7 @@ val connect :
       seconds.
     - [ping_interval] (optional): the period (in seconds) at which the client
       will be sending PING commands to the server.  Defaults to 120 seconds.
+    - [headers] (optional): enable support for headers. Defaults to false.
     - [no_responders] (optional): if true, requests with no subscribers fail
       with a "no responders" error. Defaults to false.
     - [max_pings_outstanding] (optional): the maximum number of pending PING
@@ -158,7 +160,7 @@ val subscribe : t -> ?group:string -> ?callback:callback -> string -> Subscripti
     with an optional reply-to subject.
 
     Raises [NatsError ConnectionClosed] if the connection is closed. *)
-val publish : t -> ?reply:string -> string -> string -> unit
+val publish : t -> ?headers:(string*string) list -> ?reply:string -> string -> string -> unit
 
 (** [request t ?timeout subject payload] sends a request message to the given
     subject and waits for a reply within an optional timeout period.
@@ -170,7 +172,7 @@ val publish : t -> ?reply:string -> string -> string -> unit
       operation.
     - [NatsError Timeout] if the request times out.
 *)
-val request : t -> ?timeout:float -> string -> string -> Nats.Message.t
+val request : t -> ?headers:(string*string) list -> ?timeout:float -> string -> string -> Nats.Message.t
 
 (** [request_opt t ?timeout subject payload] sends a request message to the
     given subject and waits for a reply within an optional timeout period.
@@ -182,7 +184,7 @@ val request : t -> ?timeout:float -> string -> string -> Nats.Message.t
     - [NatsError ConnectionLost] if the connection is lost during the
       operation.
 *)
-val request_opt : t -> ?timeout:float -> string -> string -> Nats.Message.t option
+val request_opt : t -> ?headers:(string*string) list -> ?timeout:float -> string -> string -> Nats.Message.t option
 
 (** [flush ?timeout t] performs a round trip to the server and returns when it
     receives the internal reply, or if the call times-out ([timeout] is
